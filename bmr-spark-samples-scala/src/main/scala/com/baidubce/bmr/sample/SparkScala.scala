@@ -24,13 +24,17 @@ object AccessLogStatsScalaSample {
     private val simpleDateFormat = new SimpleDateFormat("yyyyMMdd")
 
     def fetchDate(GMSTime: String): String = {
-        simpleDateFormat.format(logDateFormat.parse(GMSTime))
+        try {
+            simpleDateFormat.format(logDateFormat.parse(GMSTime))
+        } catch {
+            case e : Exception => null
+        }
     }
 
     def main(args: Array[String]) {
 
-        if (args.length != 1) {
-            System.err.println("usage: spark-submit com.baidubce.bmr.sample.AccessLogStatsScalaSample <input>")
+        if (args.length != 3) {
+            System.err.println("usage: spark-submit com.baidubce.bmr.sample.AccessLogStatsScalaSample <input> <pv> <uv>")
             System.exit(1)
         }
 
@@ -43,10 +47,9 @@ object AccessLogStatsScalaSample {
         /*
          * change the LogRecord to (date, 1) format, and caculate each day's page view
          */
-        println("------PV------")
         val PV = distFile.map(s => (fetchDate(s.timeLocal), 1)).reduceByKey(_ + _)
-        // for large dataset, use collect() may cause out of memory error
-        PV.collect().foreach(println)  // print PV by day in driver
+        // save pv into hdfs
+        PV.saveAsTextFile(args(1))
 
         /*
          * change the LogRecord to (date, remoteAddr) format,
@@ -54,11 +57,10 @@ object AccessLogStatsScalaSample {
          * We change the grouped Iteratable Type to Set for uniqueness.
          * Finally we can calculate the number of Unique Visitors
          */
-        println("------UV------")
         val UV = distFile.map(s => (fetchDate(s.timeLocal), s.remoteAddr))
                          .groupByKey().map(s => (s._1, s._2.toSet.size))
-        // for large dataset, use collect() may cause out of memory error
-        UV.collect().foreach(println)  // print UV by day in driver
+        // save uv into hdfs
+        UV.saveAsTextFile(args(2))
     }
 }
 

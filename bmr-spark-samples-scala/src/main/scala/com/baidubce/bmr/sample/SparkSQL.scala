@@ -29,13 +29,17 @@ object AccessLogStatsSQLSample {
     case class Record(date: String, addr: String)
 
     def fetchDate(GMSTime: String): String = {
-        simpleDateFormat.format(logDateFormat.parse(GMSTime))
+        try {
+            simpleDateFormat.format(logDateFormat.parse(GMSTime))
+        } catch {
+            case e : Exception => null
+        }
     }
 
     def main(args: Array[String]) {
 
-        if (args.length != 1) {
-            System.err.println("usage: spark-submit com.baidubce.bmr.sample.AccessLogStatsSQLSample <input>")
+        if (args.length != 3) {
+            System.err.println("usage: spark-submit com.baidubce.bmr.sample.AccessLogStatsSQLSample <input> <pv> <uv>")
             System.exit(1)
         }
 
@@ -56,10 +60,11 @@ object AccessLogStatsSQLSample {
         fileDF.registerTempTable("temp_table")
 
         println("------PV------")
-        sql("select date, count(*) as pv from temp_table group by date").show()
+        sql("select date, count(*) as pv from temp_table group by date").map(x => (x(0),x(1))).saveAsTextFile(args(1))
 
         println("------UV------")
-        sql("select date, count(distinct addr) as uv from temp_table group by date").show()
+        sql("select date, count(distinct addr) as uv from temp_table group by date").map(x =>
+            (x(0), x(1))).saveAsTextFile(args(2))
 
     }
 }
